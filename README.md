@@ -3,7 +3,7 @@
     <img src="https://i.ibb.co/5hv9sP6z/logo.png" alt="Logo" width="200" height="200">
   </a>
 </p>
-<h3 align="center">A free and powerful stem separation</h3>
+<h3 align="center">Free and powerful stem separation, made easy.</h3>
 
 <p align="center">
   <img src="https://img.shields.io/github/stars/purectl/StemLab?style=flat&color=44C6CA" alt="Stars">
