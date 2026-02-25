@@ -139,19 +139,19 @@ echo Step 1: Locate Python 3.10
 echo ------------------------------------------
 set "PY_CMD="
 
-rem Prefer the launcher explicitly targeting 3.10
-py -3.10 --version >nul 2>&1
-if %ERRORLEVEL% EQU 0 set "PY_CMD=py -3.10"
+rem Prefer the launcher explicitly targeting 3.11
+py -3.11 --version >nul 2>&1
+if %ERRORLEVEL% EQU 0 set "PY_CMD=py -3.11"
 
-rem Fallback: check that bare "python" is exactly 3.10.x
+rem Fallback: check that bare "python" is exactly 3.11.x
 if not defined PY_CMD (
-    python -c "import sys; sys.exit(0 if sys.version_info[0]==3 and sys.version_info[1]==10 else 1)" >nul 2>&1
+    python -c "import sys; sys.exit(0 if sys.version_info[0]==3 and sys.version_info[1]==11 else 1)" >nul 2>&1
     if %ERRORLEVEL% EQU 0 set "PY_CMD=python"
 )
 
 if not defined PY_CMD (
-    echo ERROR: Python 3.10 not found.
-    echo Make sure that "py -3.10" or "python" runs Python 3.10 and is on PATH.
+    echo ERROR: Python 3.11 not found.
+    echo Make sure that "py -3.11" or "python" runs Python 3.11 and is on PATH.
     goto end
 )
 
@@ -272,10 +272,6 @@ if not exist "src" (
     echo ERROR: src directory not found in %cd%.
     goto end
 )
-if not exist "resources" (
-    echo ERROR: resources directory not found in %cd%.
-    goto end
-)
 
 echo.
 echo Building EXE with PyInstaller...
@@ -301,7 +297,6 @@ pyinstaller --clean --noconsole --onefile ^
     --name "%PYI_NAME%" ^
     %PYI_VERSION_FILE% ^
     --add-data "src;src" ^
-    --add-data "resources;resources" ^
     --collect-all demucs ^
     --collect-all torchaudio ^
     --collect-all soundfile ^
@@ -311,7 +306,7 @@ pyinstaller --clean --noconsole --onefile ^
     --hidden-import="sklearn.neighbors.typedefs" ^
     --hidden-import="sklearn.neighbors.quad_tree" ^
     --hidden-import="sklearn.tree._utils" ^
-    main.py
+    stemlab.py
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
