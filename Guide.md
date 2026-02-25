@@ -1,3 +1,6 @@
+# warning: this guide will soon be moved to web docs soon
+
+
 # StemLab Guide
 Install packages
 
