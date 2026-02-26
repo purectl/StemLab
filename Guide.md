@@ -13,7 +13,7 @@ If you're on **macos** or **linux** make sure to start a venv. (preferably pytho
 python3.11 -m venv stemlab
 python -m venv stemlab
 ```
-Note: just run install.sh to **automatically** do this. 
+Note: just run install.sh to **automatically** do this, in v1.1 it also auto installs so no need to worry about it too much
 
 ---
 
