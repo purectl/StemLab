@@ -6,6 +6,12 @@
 <h3 align="center">A free and powerful stem separation</h3>
 
 <p align="center">
+  <a href="https://stemlabapp.vercel.app/guide">
+    <img src="https://img.shields.io/badge/📖_VIEW_GUIDE-44C6CA?style=for-the-badge&logo=readthedocs&logoColor=white" alt="View Guide">
+  </a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/github/stars/purectl/StemLab?style=flat&color=44C6CA" alt="Stars">
   <img src="https://img.shields.io/github/languages/top/purectl/StemLab?color=44C6CA" alt="Top Language">
   <img src="https://img.shields.io/github/last-commit/purectl/StemLab?style=flat&color=44C6CA" alt="Last Commit">
