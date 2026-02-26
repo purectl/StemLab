@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 """
-Stemlab v1.1 - BETA 
+Stemlab v1.1  
 maintained at: https://github.com/purectl/StemLab
 License: GPL
 """
 
+__author__ = "purectl"
+__license__ = "GPL"
+__version__ = "v1.1"
+
 import subprocess
 import sys
+import builtins
+import logging
 from enum import Enum
 from dataclasses import dataclass
 from typing import Optional, Literal, Dict, Any, List
@@ -21,7 +27,210 @@ import json
 import re
 import gc
 import os
+import tomli
+import urllib.request
 
+
+def check_for_update():
+    try:
+        req = urllib.request.Request(
+            "https://api.github.com/repos/purectl/StemLab/releases/latest",
+            headers={
+                "User-Agent": "StemLab/1.0",
+                "Accept": "application/vnd.github.v3+json"
+            }
+        )
+        
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            
+            latest_version = data.get('tag_name', '')
+            
+            release_url = data.get('html_url', 'https://github.com/purectl/StemLab/releases')
+            
+            is_prerelease = data.get('prerelease', False)
+            
+            return {
+                'version': latest_version,
+                'url': release_url,
+                'prerelease': is_prerelease,
+                'name': data.get('name', ''),
+                'body': data.get('body', '')[:200] + '...' if len(data.get('body', '')) > 200 else data.get('body', '')
+            }
+    except Exception as e:
+        print(f"Debug - API error: {e}") 
+        pass
+
+def compare_versions(local, remote):
+    if not remote:
+        return None
+    
+    prerelease_indicators = ['-beta', '-alpha', 'beta', '-rc', 'rc', 'alpha', 'pre', '-pre']
+    local_is_prerelease = any(x in local.lower() for x in prerelease_indicators)
+    remote_is_prerelease = any(x in remote.lower() for x in prerelease_indicators)
+    
+    def get_version_numbers(v):
+        v_lower = v.lower()
+        for tag in prerelease_indicators:
+            if tag in v_lower:
+                v = v.split(tag)[0]
+        v = v.lower().replace('v', '')
+        parts = v.replace('-', '.').split('.')
+        num_parts = []
+        for p in parts:
+            try:
+                num_parts.append(int(p))
+            except ValueError:
+                num_parts.append(0)
+        return num_parts
+    
+    local_nums = get_version_numbers(local)
+    remote_nums = get_version_numbers(remote)
+    
+    for i in range(max(len(local_nums), len(remote_nums))):
+        l = local_nums[i] if i < len(local_nums) else 0
+        r = remote_nums[i] if i < len(remote_nums) else 0
+        if l < r:
+            return "outdated"
+        elif l > r:
+            return "newer_than_release"
+    
+    if local_is_prerelease and not remote_is_prerelease:
+        return "prerelease_to_stable"
+    elif not local_is_prerelease and remote_is_prerelease:
+        return "newer_than_release"
+    elif local_is_prerelease and remote_is_prerelease:
+        return "latest"
+    else:
+        return "latest"
+        
+class Colors:
+    RESET = '\033[0m'
+    CYAN = '\033[96m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    GRAY = '\033[90m'
+    WHITE = '\033[97m'
+
+_TUI_MODE = False
+
+class ColoredFormatter(logging.Formatter):
+    
+    LEVEL_STYLES = {
+        'DEBUG':     ('🔍', Colors.GRAY),
+        'INFO':      ('ℹ️', Colors.CYAN),
+        'WARNING':   ('⚠️', Colors.YELLOW),
+        'ERROR':     ('❌', Colors.RED),
+        'CRITICAL':  ('🔥', Colors.RED),
+        'SUCCESS':   ('✅', Colors.GREEN),
+    }
+    
+    SUCCESS_LEVEL_NUM = 25
+    logging.addLevelName(SUCCESS_LEVEL_NUM, 'SUCCESS')
+    
+    def success(self, message, *args, **kwargs):
+        if self.isEnabledFor(self.SUCCESS_LEVEL_NUM):
+            self._log(self.SUCCESS_LEVEL_NUM, message, args, **kwargs)
+    
+    logging.Logger.success = success
+    
+    def format(self, record):
+        if hasattr(record, 'tui_output') and record.tui_output:
+            return record.getMessage()
+        
+        emoji, color = self.LEVEL_STYLES.get(record.levelname, ('•', Colors.WHITE))
+        
+        formatted = (
+            f"[{Colors.CYAN}StemLab{Colors.RESET}] "
+            f"| {color}{emoji} {record.levelname}{Colors.RESET} "
+            f"| {record.getMessage()}"
+        )
+        
+        if record.exc_info:
+            formatted += f"\n{self.formatException(record.exc_info)}"
+        
+        return formatted
+
+def setup_logging(log_file='stemlab.log'):
+    
+    logger = logging.getLogger('StemLab')
+    logger.setLevel(logging.DEBUG)
+    logger.handlers.clear()
+    
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(ColoredFormatter())
+    
+    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+    file_handler.setLevel(logging.DEBUG)
+    
+    class PlainFormatter(logging.Formatter):
+        def format(self, record):
+            if hasattr(record, 'tui_output') and record.tui_output:
+                return record.getMessage()
+            
+            emoji_map = {
+                'DEBUG': '🔍', 'INFO': 'ℹ️', 'WARNING': '⚠️',
+                'ERROR': '❌', 'CRITICAL': '🔥', 'SUCCESS': '✅'
+            }
+            emoji = emoji_map.get(record.levelname, '•')
+            return f"[StemLab] | {emoji} {record.levelname} | {record.getMessage()}"
+    
+    file_handler.setFormatter(PlainFormatter())
+    
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+    
+    return logger
+
+logger = setup_logging()
+
+#monkey patch cuz im too lazy <3
+original_print = print
+def print_with_log(*args, **kwargs):
+    global _TUI_MODE
+    
+    msg = ' '.join(str(arg) for arg in args)
+    
+    if _TUI_MODE:
+        original_print(*args, **kwargs)
+        return
+    
+    if msg.startswith('[StemLab]'):
+        if '✓' in msg or 'complete' in msg.lower() or 'success' in msg.lower():
+            logger.success(msg[9:].strip())
+        elif 'error' in msg.lower() or 'failed' in msg.lower() or '✗' in msg:
+            logger.error(msg[9:].strip())
+        elif 'warning' in msg.lower() or '⚠' in msg:
+            logger.warning(msg[9:].strip())
+        else:
+            logger.info(msg[9:].strip())
+    else:
+        logger.info(msg)
+
+builtins.print = print_with_log
+
+def enable_tui_mode():
+    global _TUI_MODE
+    _TUI_MODE = True
+
+def disable_tui_mode():
+    global _TUI_MODE
+    _TUI_MODE = False
+
+def tui_print(*args, **kwargs):
+    global _TUI_MODE
+    was_tui = _TUI_MODE
+    _TUI_MODE = True
+    original_print(*args, **kwargs)
+    _TUI_MODE = was_tui
+
+def log_success(msg): logger.success(msg)
+def log_error(msg, exc_info=False): logger.error(msg, exc_info=exc_info)
+def log_warning(msg): logger.warning(msg)
+def log_info(msg): logger.info(msg)
+def log_debug(msg): logger.debug(msg)
 
 def _get_required_packages():
     return [
@@ -32,6 +241,7 @@ def _get_required_packages():
         ("numpy",            "numpy"),
         ("onnxruntime",      "onnxruntime"),
         ("pyqt6",            "pyqt6"),
+        ("tomli",            "tomli"),
     ]
 
 
@@ -269,7 +479,6 @@ def _delete_model_file(key: str):
 
 
 def _is_vocal_model(key: str, info: dict) -> bool:
-    """Return True if the model is suitable for vocal extraction."""
     if info.get("type") == "fused" or key == "PHANTOM":
         return True
     name = info.get("name", "").lower()
@@ -4396,12 +4605,100 @@ def _tui_run():
         print()
 
 
+
+
 def main():
-    if "--tui" in sys.argv:
-        if not _tui_check_dependencies():
+    no_check = False
+    tui = False
+    show_version = False
+    
+    for arg in sys.argv[1:]:
+        if arg == "--no-check":
+            no_check = True
+        elif arg == "--tui":
+            tui = True
+        elif arg == "--version": 
+            show_version = True
+        elif arg.startswith("-"):
+            tui_print(f"Unknown option: {arg}")
             sys.exit(1)
-        _tui_run()
+    
+    if tui:
+        enable_tui_mode()
+        
+        if no_check:
+            tui_print("[StemLab] --no-check specified, skipping dependency checks")
+            _tui_run() 
+        else:
+            if not _tui_check_dependencies():
+                sys.exit(1)
+            _tui_run()
         return
+
+    if show_version:
+        print(f"StemLab version: {__version__}")
+        print("-" * 50)
+        
+        release_info = check_for_update()
+        if release_info:
+            remote = release_info['version']
+            status = compare_versions(__version__, remote)
+            
+            if status == "latest":
+                print("✓ You're running the latest version!")
+                print(f"  Current: {__version__}")
+                print(f"  Latest:  {remote}")
+                
+            elif status == "outdated":
+                print("⚠ A new version is available!")
+                print(f"  Your version:    {__version__}")
+                print(f"  Latest release:  {remote}")
+                if release_info['name']:
+                    print(f"  Release name:    {release_info['name']}")
+                print()
+                print("📥 Download the latest version:")
+                print(f"   {release_info['url']}")
+                print("   https://github.com/purectl/StemLab/")
+                
+            elif status == "prerelease_to_stable":
+                print("ℹ You're on a beta/alpha version")
+                print(f"  Your version:    {__version__}")
+                print(f"  Stable release:  {remote}")
+                if release_info['name']:
+                    print(f"  Release name:    {release_info['name']}")
+                print()
+                print("✨ Consider upgrading to the latest stable version for:")
+                print("   • Better stability")
+                print("   • Performance improvements")
+                print("   • Production-ready features")
+                print()
+                print("📥 Download stable version:")
+                print(f"   {release_info['url']}")
+                
+            elif status == "newer_than_release":
+                print("⚠ You're running a development version")
+                print(f"  Your version:    {__version__}")
+                print(f"  Latest release:  {remote}")
+                print()
+                print("🔧 If you're not a developer, consider switching to the stable release:")
+                print(f"   {release_info['url']}")
+                print("i also wonder how you got yourself here. messing around in the code? or did it get leaked before i released it?")
+                
+            elif status == "equal_prerelease":
+                print("ℹ You're on the latest prerelease version")
+                print(f"  Version: {__version__}")
+                if release_info['prerelease']:
+                    print("  (This is a pre-release version)")
+                print()
+                print("📥 Check for stable releases:")
+                print("   https://github.com/purectl/StemLab/releases")
+        else:
+            print("⚠ Could not check for updates")
+            print(f"  Current version: {__version__}")
+            print("  Visit: https://github.com/purectl/StemLab/releases")
+        
+        print("-" * 50)
+        sys.exit(0)
 
     ensure_dependencies()
     run_gui()
