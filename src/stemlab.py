@@ -27,7 +27,6 @@ import json
 import re
 import gc
 import os
-import tomli
 import urllib.request
 
 
@@ -186,6 +185,7 @@ def setup_logging(log_file='stemlab.log'):
 
 logger = setup_logging()
 
+#cute, but can cause problems later on you should replace prints with logging <3 - ayla
 #monkey patch cuz im too lazy <3
 original_print = print
 def print_with_log(*args, **kwargs):
