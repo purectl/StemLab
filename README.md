@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://github.com/purectl/StemLab">
-    <img src="https://i.ibb.co/5hv9sP6z/logo.png" alt="Logo" width="200" height="200">
+    <img src="https://i.ibb.co/mCt7VJH8/stemlab.png" alt="Logo" width="200" height="200">
   </a>
 </p>
 
